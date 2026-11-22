@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<title>M3U Resolution Analyzer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#0f1420; --card:#182033; --line:#2a3550; --txt:#e6ebf5; --mut:#8b97b3; --acc:#4f8cff; --ok:#2ecc71; --bad:#ff5d5d; --warn:#f5b942; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:14px/1.4 Segoe UI, Arial, sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; }
+  h1 { margin:0; font-size:20px; }
+  main { padding:20px 24px; max-width:1500px; margin:auto; display:grid; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  label { color:var(--mut); display:flex; gap:6px; align-items:center; }
+  input, select, button { background:#0f1626; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:7px 10px; font:inherit; }
+  input[type=number] { width:70px; }
+  input[type=text] { min-width:340px; flex:1; }
+  button { cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; }
+  button.danger { background:var(--bad); border-color:var(--bad); color:#fff; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .tiles { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)) repeat(2,minmax(0,2.6fr)); gap:10px; align-items:stretch; }
+  .tile .sub { margin-top:4px; font-size:13px; color:var(--mut); }
+  .tile .sub b { color:var(--txt); font-size:13px; }
+  .tile.plain { cursor:default; padding:8px 10px; text-align:center; display:flex; flex-direction:column; justify-content:center; }
+  .tile.plain .n { font-size:20px; }
+  .tile:not(.plain) { padding:8px 10px; text-align:center; }
+  .tile:not(.plain) .n { font-size:20px; }
+  .tile:not(.plain) .l { font-size:12px; }
+  .two { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }
+  .box { background:#0f1626; border:1px solid var(--line); border-radius:8px; padding:12px; font-size:13px; }
+  .box h3 { margin:0 0 6px; font-size:15px; }
+  .box table { width:100%; }
+  .box th, .box td { padding:5px 8px; height:34px; }
+  .box button { font-size:12px; padding:4px 10px; }
+  .tile { background:#0f1626; border:1px solid var(--line); border-radius:8px; padding:12px; cursor:pointer; }
+  .tile .n { font-size:26px; font-weight:700; }
+  .tile .l { color:var(--mut); font-size:12px; }
+  .tile.ok .n { color:var(--ok); } .tile.bad .n { color:var(--bad); } .tile.hevc .n { color:var(--warn); }
+  .bar { height:10px; background:#0f1626; border-radius:6px; overflow:hidden; border:1px solid var(--line); }
+  .bar > div { height:100%; background:var(--acc); width:0; transition:width .3s; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--mut); font-weight:600; cursor:pointer; user-select:none; }
+  td.name { white-space:normal; max-width:420px; overflow:hidden; text-overflow:ellipsis; }
+  tr.click { cursor:pointer; } tr.click:hover { background:#1d2842; }
+  .s-ok { color:var(--ok); } .s-fail { color:var(--bad); } .s-checking { color:var(--warn); } .s-pending { color:var(--mut); }
+  .pill { padding:1px 7px; border-radius:10px; background:#24304d; font-size:12px; }
+  .pill.hevc { background:#5a4510; color:var(--warn); }
+  .muted { color:var(--mut); } #msg { min-height:20px; }
+  h2 { margin:0 0 10px; font-size:15px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>M3U Resolution Analyzer</h1>
+  <span class="muted" id="listName">Nema učitane liste</span>
+  <span id="toolWarn" class="s-fail"></span>
+</header>
+<main>
+  <section class="card">
+    <h2>1. Učitaj listu</h2>
+    <div class="row">
+      <input type="file" id="file" accept=".m3u,.m3u8,.txt" hidden>
+      <button id="pick">Odaberi datoteku</button>
+      <span class="muted">ili</span>
+      <input type="text" id="url" placeholder="http://server/get.php?username=...&password=...&type=m3u_plus">
+      <button id="loadUrl">Učitaj URL</button>
+      <button id="clear">Očisti listu</button>
+    </div>
+    <div id="msg" class="muted"></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Provjera</h2>
+    <div class="row">
+      <label>Paralelno <input type="number" id="workers" value="5" min="1" max="40"></label>
+      <label>Timeout (s) <input type="number" id="timeout" value="15" min="3" max="120"></label>
+      <label><input type="checkbox" id="measure" checked> Mjeri Mbps</label>
+      <label>uzorak (s) <input type="number" id="sample" value="5" min="2" max="30"></label>
+      <label><input type="checkbox" id="skipVod" checked> Preskoči filmove/serije</label>
+      <label>Grupa <select id="groupSel"><option value="">Sve grupe</option></select></label>
+      <button class="primary" id="start" disabled>Pokreni provjeru</button>
+      <button id="retry" disabled>Ponovi neuspjele</button>
+      <button class="danger" id="stop" disabled>Zaustavi</button>
+    </div>
+    <div style="margin-top:12px" class="bar"><div id="prog"></div></div>
+    <div class="muted" id="progTxt" style="margin-top:4px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Dashboard</h2>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2>Izvoz po rezoluciji i kodeku</h2>
+      <div class="row">
+        <label><input type="checkbox" id="tag"> Dodaj oznaku (rezolucija, kodek, Mbps) u naziv kanala</label>
+        <button class="primary" id="zip">Izvezi sve odvojeno (ZIP)</button>
+      </div>
+    </div>
+    <div id="resTable" class="two"></div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <h2 style="margin:0">Kanali</h2>
+      <input type="text" id="search" placeholder="Traži kanal..." style="min-width:200px;flex:0 1 240px">
+      <select id="fStatus"><option value="">Svi statusi</option><option value="ok">Radi</option><option value="fail">Ne radi</option><option value="pending">Neprovjereno</option></select>
+      <select id="fCodec"><option value="">Svi kodeci</option><option value="hevc">HEVC</option><option value="h264">H.264</option></select>
+      <select id="fRes"><option value="">Sve rezolucije</option><option>4K</option><option>FHD</option><option>HD</option><option>SD</option></select>
+      <span class="muted" id="count"></span>
+    </div>
+    <div style="overflow:auto; margin-top:10px"><table id="chTable"></table></div>
+    <div style="margin-top:10px"><button id="more" style="display:none">Prikaži još</button></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let channels = [], version = -1, running = false, total = 0, shown = 300, sortKey = 'id', sortDir = 1, groupsKey = '';
+const isHevc = c => c.vcodec === 'hevc' || c.vcodec === 'h265';
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const fmt = (v, d = 2) => v == null ? '–' : Number(v).toFixed(d);
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  return r.json();
+}
+function say(text, bad) { $('msg').textContent = text; $('msg').className = bad ? 's-fail' : 'muted'; }
+
+$('pick').onclick = () => $('file').click();
+$('file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  say('Učitavam ' + f.name + '...');
+  const r = await fetch('/api/load-file', { method: 'POST', body: await f.text(), headers: { 'X-Filename': encodeURIComponent(f.name) } });
+  const d = await r.json();
+  d.error ? say(d.error, true) : say(`Učitano ${d.total} kanala iz ${d.name}`);
+  e.target.value = '';
+  version = -1;
+};
+$('clear').onclick = async () => {
+  const d = await api('/api/clear', {});
+  if (d.error) { say(d.error, true); return; }
+  $('url').value = '';
+  say('Lista očišćena');
+  version = -1;
+};
+$('loadUrl').onclick = async () => {
+  say('Preuzimam listu...');
+  const d = await api('/api/load-url', { url: $('url').value });
+  d.error ? say(d.error, true) : say(`Učitano ${d.total} kanala (${d.name})`);
+  version = -1;
+};
+const options = retry => ({ workers: +$('workers').value, timeout: +$('timeout').value, measure: $('measure').checked,
+  sample: +$('sample').value, skipVod: $('skipVod').checked, group: $('groupSel').value, retry });
+$('start').onclick = async () => { const d = await api('/api/start', options(false)); d.error ? say(d.error, true) : say(`Provjera pokrenuta (${d.target} kanala)`); };
+$('retry').onclick = async () => { const d = await api('/api/start', options(true)); d.error ? say(d.error, true) : say(`Ponovna provjera (${d.target} kanala)`); };
+$('stop').onclick = () => api('/api/stop', {});
+const tagQ = () => $('tag').checked ? '1' : '0';
+$('zip').onclick = () => { location.href = '/api/export.zip?tag=' + tagQ(); };
+function exportKey(key) { location.href = '/api/export?key=' + encodeURIComponent(key) + '&tag=' + tagQ(); }
+window.exportKey = exportKey;
+
+function setFilter(cat, codec) {
+  $('fRes').value = cat || '';
+  $('fCodec').value = codec || '';
+  $('fStatus').value = (cat || codec) ? 'ok' : $('fStatus').value;
+  shown = 300; renderTable();
+  $('chTable').scrollIntoView({ behavior: 'smooth' });
+}
+window.setFilter = setFilter;
+
+const CATS = ['4K', 'FHD', 'HD', 'SD'];
+const codecOf = c => isHevc(c) ? 'H265' : c.vcodec === 'h264' ? 'H264' : '';
+const codecLabel = { H265: 'HEVC (H.265)', H264: 'H.264' };
+
+function renderDashboard() {
+  const ok = channels.filter(c => c.status === 'ok');
+  const fail = channels.filter(c => c.status === 'fail').length;
+  const by = {};
+  for (const c of ok) { const k = codecOf(c); if (k) (by[k] = by[k] || []).push(c); }
+  const split = list => CATS.map(k => `${k} <b>${list.filter(c => c.cat === k).length}</b>`).join(' · ');
+  const codecTile = (k, cls, filter) => `<div class="tile ${cls}" onclick="setFilter('','${filter}')"><div class="n">${(by[k] || []).length}</div>
+    <div class="l">${codecLabel[k]}</div><div class="sub">${split(by[k] || [])}</div></div>`;
+  const plain = (l, n, cls) => `<div class="tile plain ${cls}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  $('tiles').innerHTML = plain('Ukupno kanala', channels.length, '') + plain('Provjereno', ok.length + fail, '') +
+    plain('Radi', ok.length, 'ok') + plain('Ne radi', fail, 'bad') + codecTile('H265', 'hevc', 'hevc') + codecTile('H264', '', 'h264');
+
+  const exportBtn = (codec, cat, n) => n ? `<b>${n}</b> <button onclick="exportKey('cc:${codec}:${cat}')">Izvezi sve</button>` : '<b>0</b>';
+  const catHint = { '4K': '(2160p+)', FHD: '(1080p)', HD: '(720p)', SD: '(ispod 720p)' };
+  const box = k => {
+    const list = by[k] || [];
+    return `<div class="box"><div class="row" style="justify-content:space-between"><h3>${codecLabel[k]}</h3>
+      <span>${exportBtn(k, 'ALL', list.length)}</span></div>
+      <table><tr><th>Rezolucija</th><th>Kanala</th><th></th></tr>` +
+      CATS.map(cat => {
+        const n = list.filter(c => c.cat === cat).length;
+        return `<tr><td><b>${cat}</b> <span class="muted">${catHint[cat]}</span></td><td>${n}</td>
+          <td>${n ? `<button onclick="exportKey('cc:${k}:${cat}')">Izvezi ${cat}_${k}.m3u</button>` : ''}</td></tr>`;
+      }).join('') + '</table></div>';
+  };
+  $('resTable').innerHTML = box('H265') + box('H264');
+}
+
+function renderGroups() {
+  const names = [...new Set(channels.map(c => c.group).filter(Boolean))].sort();
+  const key = names.join('|');
+  if (key === groupsKey) return;
+  groupsKey = key;
+  const prev = $('groupSel').value;
+  $('groupSel').innerHTML = '<option value="">Sve grupe</option>' + names.map(g => `<option>${esc(g)}</option>`).join('');
+  $('groupSel').value = prev;
+}
+
+function filtered() {
+  const q = $('search').value.toLowerCase(), st = $('fStatus').value, cd = $('fCodec').value, rs = $('fRes').value;
+  let list = channels.filter(c =>
+    (!q || c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)) &&
+    (!st || (st === 'pending' ? c.status === 'pending' || c.status === 'checking' : c.status === st)) &&
+    (!cd || (cd === 'hevc' ? isHevc(c) : c.vcodec === 'h264')) &&
+    (!rs || c.cat === rs));
+  const k = sortKey;
+  return list.sort((a, b) => {
+    const x = a[k] ?? -1, y = b[k] ?? -1;
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
+  });
+}
+
+function renderTable() {
+  const list = filtered();
+  const head = [['id', '#'], ['name', 'Kanal'], ['group', 'Grupa'], ['status', 'Status'], ['vcodec', 'Kodek'], ['res', 'Rezolucija'],
+    ['fps', 'FPS'], ['ms', 'Vrijeme (ms)'], ['mbps', 'Mbps'], ['acodec', 'Audio']];
+  $('chTable').innerHTML = '<tr>' + head.map(([k, l]) => `<th onclick="sortBy('${k}')">${l}${sortKey === k ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('') + '</tr>' +
+    list.slice(0, shown).map(c => `<tr><td>${c.id + 1}</td><td class="name" title="${esc(c.err)}">    ${esc(c.name)}</td><td>${esc(c.group)}</td>
+      <td class="s-${c.status}" title="${esc(c.err)}">${{ ok: 'Radi', fail: 'Ne radi', checking: 'Provjera...', pending: 'Čeka' }[c.status]}</td>
+      <td>${c.vcodec ? `<span class="pill ${isHevc(c) ? 'hevc' : ''}">${isHevc(c) ? 'HEVC' : esc(c.vcodec.toUpperCase())}</span>` : ''}</td>
+      <td>${esc(c.res)}</td><td>${c.fps || ''}</td><td>${c.ms ?? ''}</td><td>${c.mbps ?? ''}</td><td>${esc(c.acodec)}</td></tr>`).join('');
+  $('count').textContent = `${list.length} kanala`;
+  $('more').style.display = list.length > shown ? '' : 'none';
+}
+window.sortBy = k => { sortDir = sortKey === k ? -sortDir : 1; sortKey = k; renderTable(); };
+$('more').onclick = () => { shown += 500; renderTable(); };
+['search', 'fStatus', 'fCodec', 'fRes'].forEach(id => $(id).oninput = () => { shown = 300; renderTable(); });
+
+async function poll() {
+  try {
+    const d = await api('/api/state?v=' + version);
+    running = d.running; total = d.total;
+    if (!d.tools.ffprobe) $('toolWarn').textContent = 'ffprobe nije pronađen (winget install Gyan.FFmpeg.Essentials)';
+    else if (!d.tools.ffmpeg) $('toolWarn').textContent = 'ffmpeg nije pronađen: Mbps mjerenje nedostupno';
+    $('listName').textContent = d.name ? `${d.name} · ${d.total} kanala` : 'Nema učitane liste';
+    if (d.channels) { channels = d.channels; version = d.version; renderGroups(); renderDashboard(); renderTable(); }
+    const pct = d.target ? 100 * d.done / d.target : 0;
+    $('prog').style.width = pct + '%';
+    $('progTxt').textContent = d.target ? `${d.done} / ${d.target} provjereno${d.running ? ' (u toku)' : ''}` : '';
+    $('start').disabled = running || !total; $('retry').disabled = running || !total; $('stop').disabled = !running;
+  } catch (e) { /* server nedostupan */ }
+  setTimeout(poll, 1000);
+}
+poll();
+</script>
+</body>
+</html>
