@@ -31,9 +31,4 @@ Potrebni su `ffprobe` i `ffmpeg` (`winget install Gyan.FFmpeg.Essentials`); serv
 - Mjerenje Mbps drži svaki kanal otvoren još ~5 s; isključi ga za brzu provjeru samo rezolucije.
 - **Ponovi neuspjele** ponovo provjerava kanale koji su pali (timeout, preopterećenje).
 
-Na novom sistemu:
 
-Instaliraj Python 3 (s "Add to PATH").
-Instaliraj ffmpeg: winget install Gyan.FFmpeg.Essentials
-Preuzmi projekt: git clone https://github.com/seadduda/M3U-Resolution-Analyzer.git
-Pokreni pokreni_analyzer.bat.
